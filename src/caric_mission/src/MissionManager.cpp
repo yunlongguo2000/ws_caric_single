@@ -57,6 +57,13 @@
 
 #include "boost/filesystem.hpp"
 
+#include <sensor_msgs/PointCloud2.h>
+#include <octomap/octomap.h>
+#include <octomap_msgs/conversions.h>
+#include <octomap_msgs/Octomap.h>
+#include <octomap/OcTree.h>
+#include <octomap_ros/conversions.h>
+
 // Printout colors
 #define KNRM "\x1B[0m"
 #define KRED "\x1B[31m"
@@ -126,6 +133,10 @@ deque<deque<CloudXYZIPtr>> kfCloud; // Keyframe clouds
 deque<ros::Publisher> kfPosePub;
 deque<ros::Publisher> slfKfCloudPub;
 deque<ros::Publisher> cloudInWPub;
+
+// Octomap publishers
+deque<ros::Publisher> octomapPub;
+deque<octomap::OcTree*> octreeList;
 
 // Mission information
 deque<ros::Publisher> missionDurRemained;
@@ -232,6 +243,24 @@ void UpdateSLAMDatabase(int slfIdx, PointPose pose, CloudXYZIPtr &cloud)
     kfCloud[slfIdx].push_back(cloud);
     Util::publishCloud(kfPosePub[slfIdx], *kfPose[slfIdx], ros::Time(pose.t), string("world"));
     Util::publishCloud(slfKfCloudPub[slfIdx], *cloud, ros::Time(pose.t), string("world"));
+
+    // Update octomap
+    octomap::Pointcloud octomap_cloud;
+    for (auto &point : cloud->points)
+    {
+        octomap_cloud.push_back(point.x, point.y, point.z);
+    }
+    octreeList[slfIdx]->insertPointCloud(octomap_cloud, octomap::point3d(0, 0, 0));
+    octreeList[slfIdx]->updateInnerOccupancy();
+
+    // Publish the octomap
+    octomap_msgs::Octomap octomap_msg;
+    octomap_msg.header.frame_id = "world";
+    octomap_msg.header.stamp = ros::Time::now();
+    if (octomap_msgs::fullMapToMsg(*octreeList[slfIdx], octomap_msg))
+    {
+        octomapPub[slfIdx].publish(octomap_msg);
+    }
 
     // Check if there is line of sight to other nodes and publish this kf cloud
     for (int nbrIdx = 0; nbrIdx < Nnodes; nbrIdx++)
@@ -364,6 +393,10 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             kfPosePub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/kf_pose", 1));
             slfKfCloudPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/slf_kf_cloud", 1));
             cloudInWPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1));
+
+            // Octomap initialization
+            octomapPub.push_back(nh_ptr->advertise<octomap_msgs::Octomap>("/" + nodeName[i] + "/octomap", 1));
+            octreeList.push_back(new octomap::OcTree(1)); // Octomap resolution 1m
 
             // Publisher for cooperative SLAM
             nbr_kf_pub_mtx.emplace_back();
