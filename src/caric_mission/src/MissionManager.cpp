@@ -104,7 +104,8 @@ typedef nav_msgs::Odometry OdomMsg;
 typedef nav_msgs::Odometry::ConstPtr OdomMsgPtr;
 typedef sensor_msgs::PointCloud2 CloudMsg;
 typedef sensor_msgs::PointCloud2::ConstPtr CloudMsgPtr;
-typedef sync_policies::ApproximateTime<OdomMsg, CloudMsg> MySyncPolicy;
+// typedef sync_policies::ApproximateTime<OdomMsg, CloudMsg> MySyncPolicy;
+typedef sync_policies::ApproximateTime<OdomMsg, CloudMsg, CloudMsg> MySyncPolicy;
 
 // Handles to ROS and Gazebo object
 gazebo::physics::WorldPtr world = NULL;
