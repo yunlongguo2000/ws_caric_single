@@ -500,7 +500,7 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             // Publisher for local SLAM
             kfPosePub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/kf_pose", 1));
             slfKfCloudPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/slf_kf_cloud", 1));
-            cloudInWPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1));
+            cloudInWPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW_output", 1));
             OctomapPub.push_back(nh_ptr->advertise<octomap_msgs::Octomap>("/" + nodeName[i] + "/octomap", 1));
 
             //Subscriber for local SLAM
