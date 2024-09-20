@@ -17,6 +17,9 @@ find_package(catkin REQUIRED COMPONENTS
   rotors_comm
   unicon
   message_generation
+  sensor_msgs
+  octomap_msgs
+  octomap_ros
 )
 
 # catkin_python_setup()

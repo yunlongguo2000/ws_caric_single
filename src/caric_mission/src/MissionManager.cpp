@@ -124,6 +124,7 @@ MatrixXd        linkMat;
 deque<message_filters::Subscriber<OdomMsg>> odomSub;
 deque<message_filters::Subscriber<OdomMsg>> servoSub;
 deque<message_filters::Subscriber<CloudMsg>> cloudSub;
+deque<message_filters::Subscriber<CloudMsg>> cloudInWSub;
 deque<Synchronizer<MySyncPolicy>> msgSync;
 
 // Local SLAM data
