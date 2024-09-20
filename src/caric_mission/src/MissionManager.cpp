@@ -503,7 +503,7 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             OctomapPub.push_back(nh_ptr->advertise<octomap_msgs::Octomap>("/" + nodeName[i] + "/octomap", 1));
 
             //Subscriber for local SLAM
-            cloudInWSub.push_back(nh_ptr->subscribe<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1, boost::bind(GenerateOctoCallback, _1, i)));
+            // cloudInWSub.push_back(nh_ptr->subscribe<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1, boost::bind(GenerateOctoCallback, _1, i)));
 
             // Publisher for cooperative SLAM
             nbr_kf_pub_mtx.emplace_back();
