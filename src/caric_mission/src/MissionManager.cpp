@@ -254,7 +254,119 @@ void UpdateSLAMDatabase(int slfIdx, PointPose pose, CloudXYZIPtr &cloud)
     }
 }
 
-void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg, int idx)
+// void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg, int idx)
+// {
+//     // Do nothing if node is dead
+//     if (!nodeAlive[idx])
+//         return;
+
+//     // Ignore the data if time sync is larger than 1ms
+//     double time_diff_servo_cloud = fabs((cloudMsg->header.stamp - servoMsg->header.stamp).toSec());
+//     if(time_diff_servo_cloud > 0.001 )
+//     {
+//         printf(KRED "Node %d. Tservo: %.3f. Tcloud %.3f.\n" RESET,
+//                 idx, servoMsg->header.stamp.toSec(), cloudMsg->header.stamp.toSec());
+//         return;
+//     }
+//     // else
+//     //     printf(KGRN "Node %d. Tcloud %.3f, Todom: %.3f\n" RESET,
+//     //             idx, cloudMsg->header.stamp.toSec(), odomMsg->header.stamp.toSec());
+
+//     myTf<double> tf_W_S(*servoMsg);
+//     Quaternd q_W_S0 = Util::YPR2Quat(tf_W_S.yaw(), 0, 0);
+//     myTf<double> tf_W_S0(q_W_S0, tf_W_S.pos);
+//     myTf<double> tf_W_B = tf_W_S0 * tf_B_S.inverse();
+//     PointPose pose_W_B = tf_W_B.Pose6D(servoMsg->header.stamp.toSec());
+
+//     // Transform lidar into the world frame and publish it for visualization
+//     CloudXYZIPtr cloud(new CloudXYZI());
+//     pcl::fromROSMsg(*cloudMsg, *cloud);
+//     pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg)*tf_S_L).cast<float>().tfMat());
+//     Util::publishCloud(cloudInWPub[idx], *cloud, cloudMsg->header.stamp, string("world"));
+
+//     // Save the key frame and key cloud
+//     if (kfPose[idx]->size() == 0)
+//     {
+//         UpdateSLAMDatabase(idx, tf_W_B.Pose6D(servoMsg->header.stamp.toSec()), cloud);
+//     }
+//     else if(servoMsg->header.stamp.toSec() - kfPose[idx]->back().t > 1.0)
+//     {
+//         // Check the distance to register a new keyframe
+//         pcl::KdTreeFLANN<PointPose> kdTreeKeyFrames;
+//         kdTreeKeyFrames.setInputCloud(kfPose[idx]);
+
+//         vector<int> knn_idx(kf_knn_num, 0);
+//         vector<float> kk_sq_dis(kf_knn_num, 0);
+//         kdTreeKeyFrames.nearestKSearch(pose_W_B, kf_knn_num, knn_idx, kk_sq_dis);
+
+//         // Check for far distance and far angle
+//         bool far_distance = kk_sq_dis.front() > kf_min_dis*kf_min_dis;
+//         bool far_angle = true;
+//         for(int i = 0; i < knn_idx.size(); i++)
+//         {
+//             int kf_idx = knn_idx[i];
+
+//             // Collect the angle difference
+//             Quaternd Qa(kfPose[idx]->points[kf_idx].qw,
+//                         kfPose[idx]->points[kf_idx].qx,
+//                         kfPose[idx]->points[kf_idx].qy,
+//                         kfPose[idx]->points[kf_idx].qz);
+
+//             Quaternd &Qb = tf_W_B.rot;
+
+//             // If the angle is more than 10 degrees, add this to the key pose
+//             if (fabs(Util::angleDiff(Qa, Qb)) < kf_min_ang)
+//             {
+//                 far_angle = false;
+//                 break;
+//             }
+//         }
+
+//         // Admit the key frame if sufficiently spaced and publish it to neigbours
+//         if(far_distance || far_angle)
+//             UpdateSLAMDatabase(idx, tf_W_B.Pose6D(servoMsg->header.stamp.toSec()), cloud);
+//     }
+// }
+
+// void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
+// {
+//     // // Transform the point cloud into the world frame as already done
+//     // CloudXYZIPtr cloud(new CloudXYZI());
+//     // pcl::fromROSMsg(*msg, *cloud);
+
+//     // // Transform the point cloud into the world frame
+//     // pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
+//     // Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
+
+//     // Transform the format of the point cloud into octomap
+//     octomap::Pointcloud octomapCloud;
+//     octomap::pointCloud2ToOctomap(*msg, octomapCloud);
+
+//     // Update Octree, and use it to generate Octomap
+//     double resolution = 1;
+//     octomap::OcTree octree(resolution);
+    
+//     // Insert the point cloud into the octree
+//     for (auto& point : octomapCloud) {
+//         octree.updateNode(octomap::point3d(point.x(), point.y(), point.z()), true);
+//     }
+
+//     // Update the inner occupancy
+//     octree.updateInnerOccupancy();
+
+//     // Publish the octomap
+//     octomap_msgs::Octomap octomapMsg;
+//     octomapMsg.header.frame_id = "world";
+//     octomapMsg.header.stamp = ros::Time::now();
+
+
+//     if (octomap_msgs::fullMapToMsg(octree, octomapMsg)) {
+//         OctomapPub[idx].publish(octomapMsg);
+//     }
+// }
+
+
+void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg, const CloudMsgPtr &cloudInWMsg, int idx)
 {
     // Do nothing if node is dead
     if (!nodeAlive[idx])
@@ -268,9 +380,6 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
                 idx, servoMsg->header.stamp.toSec(), cloudMsg->header.stamp.toSec());
         return;
     }
-    // else
-    //     printf(KGRN "Node %d. Tcloud %.3f, Todom: %.3f\n" RESET,
-    //             idx, cloudMsg->header.stamp.toSec(), odomMsg->header.stamp.toSec());
 
     myTf<double> tf_W_S(*servoMsg);
     Quaternd q_W_S0 = Util::YPR2Quat(tf_W_S.yaw(), 0, 0);
@@ -291,7 +400,6 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
     }
     else if(servoMsg->header.stamp.toSec() - kfPose[idx]->back().t > 1.0)
     {
-        // Check the distance to register a new keyframe
         pcl::KdTreeFLANN<PointPose> kdTreeKeyFrames;
         kdTreeKeyFrames.setInputCloud(kfPose[idx]);
 
@@ -299,22 +407,15 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
         vector<float> kk_sq_dis(kf_knn_num, 0);
         kdTreeKeyFrames.nearestKSearch(pose_W_B, kf_knn_num, knn_idx, kk_sq_dis);
 
-        // Check for far distance and far angle
-        bool far_distance = kk_sq_dis.front() > kf_min_dis*kf_min_dis;
+        bool far_distance = kk_sq_dis.front() > kf_min_dis * kf_min_dis;
         bool far_angle = true;
-        for(int i = 0; i < knn_idx.size(); i++)
+        for (int i = 0; i < knn_idx.size(); i++)
         {
             int kf_idx = knn_idx[i];
-
-            // Collect the angle difference
-            Quaternd Qa(kfPose[idx]->points[kf_idx].qw,
-                        kfPose[idx]->points[kf_idx].qx,
-                        kfPose[idx]->points[kf_idx].qy,
-                        kfPose[idx]->points[kf_idx].qz);
-
+            Quaternd Qa(kfPose[idx]->points[kf_idx].qw, kfPose[idx]->points[kf_idx].qx,
+                        kfPose[idx]->points[kf_idx].qy, kfPose[idx]->points[kf_idx].qz);
             Quaternd &Qb = tf_W_B.rot;
 
-            // If the angle is more than 10 degrees, add this to the key pose
             if (fabs(Util::angleDiff(Qa, Qb)) < kf_min_ang)
             {
                 far_angle = false;
@@ -322,48 +423,32 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
             }
         }
 
-        // Admit the key frame if sufficiently spaced and publish it to neigbours
-        if(far_distance || far_angle)
+        if (far_distance || far_angle)
             UpdateSLAMDatabase(idx, tf_W_B.Pose6D(servoMsg->header.stamp.toSec()), cloud);
     }
-}
 
-void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
-{
-    // // Transform the point cloud into the world frame as already done
-    // CloudXYZIPtr cloud(new CloudXYZI());
-    // pcl::fromROSMsg(*msg, *cloud);
-
-    // // Transform the point cloud into the world frame
-    // pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
-    // Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
-
-    // Transform the format of the point cloud into octomap
+    // Handle cloudInWMsg and generate octomap (previously in GenerateOctoCallback)
     octomap::Pointcloud octomapCloud;
-    octomap::pointCloud2ToOctomap(*msg, octomapCloud);
+    octomap::pointCloud2ToOctomap(*cloudInWMsg, octomapCloud);
 
-    // Update Octree, and use it to generate Octomap
     double resolution = 1;
     octomap::OcTree octree(resolution);
-    
-    // Insert the point cloud into the octree
-    for (auto& point : octomapCloud) {
+
+    for (auto &point : octomapCloud) {
         octree.updateNode(octomap::point3d(point.x(), point.y(), point.z()), true);
     }
 
-    // Update the inner occupancy
     octree.updateInnerOccupancy();
 
-    // Publish the octomap
     octomap_msgs::Octomap octomapMsg;
     octomapMsg.header.frame_id = "world";
     octomapMsg.header.stamp = ros::Time::now();
-
 
     if (octomap_msgs::fullMapToMsg(octree, octomapMsg)) {
         OctomapPub[idx].publish(octomapMsg);
     }
 }
+
 
 void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
 {
@@ -395,11 +480,17 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             string gndtr_topic = "/" + nodeName[i] + "/ground_truth/odometry";
             string servo_topic = "/" + nodeName[i] + "/servo/odometry";
             string cloud_topic = "/" + nodeName[i] + "/velodyne_points";
+            string cloudInW_topic = "/" + nodeName[i] + "/cloud_inW";
+
             odomSub.emplace_back(*nh_ptr, gndtr_topic, 100);
             servoSub.emplace_back(*nh_ptr, servo_topic, 100);
             cloudSub.emplace_back(*nh_ptr, cloud_topic, 100);
-            msgSync.emplace_back(MySyncPolicy(10), servoSub[i], cloudSub[i]);
-            msgSync.back().registerCallback(boost::bind(&ServoCloudCallback, _1, _2, i));
+            cloudInWSub.emplace_back(*nh_ptr, cloudInW_topic, 100);
+
+            // msgSync.emplace_back(MySyncPolicy(10), servoSub[i], cloudSub[i]);
+            msgSync.emplace_back(MySyncPolicy(10), servoSub[i], cloudSub[i], cloudInWSub[i]);
+            // msgSync.back().registerCallback(boost::bind(&ServoCloudCallback, _1, _2, i));
+            msgSync.back().registerCallback(boost::bind(&ServoCloudCallback, _1, _2, _3, i));
 
             // Local SLAM database
             kfPose.push_back(CloudPosePtr(new CloudPose()));
