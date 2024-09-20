@@ -328,6 +328,43 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
     }
 }
 
+void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
+{
+    // Transform the point cloud into the world frame as already done
+    CloudXYZIPtr cloud(new CloudXYZI());
+    pcl::fromROSMsg(*msg, *cloud);
+
+    // Transform the point cloud into the world frame
+    pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
+    Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
+
+    // Transform the format of the point cloud into octomap
+    octomap::Pointcloud octomapCloud;
+    octomap::pointCloud2ToOctomap(*msg, octomapCloud);
+
+    // Update Octree, and use it to generate Octomap
+    double resolution = 1;
+    octomap::OcTree octree(resolution);
+    
+    // Insert the point cloud into the octree
+    for (auto& point : octomapCloud) {
+        octree.updateNode(octomap::point3d(point.x(), point.y(), point.z()), true);
+    }
+
+    // Update the inner occupancy
+    octree.updateInnerOccupancy();
+
+    // Publish the octomap
+    octomap_msgs::Octomap octomapMsg;
+    octomapMsg.header.frame_id = "world";
+    octomapMsg.header.stamp = ros::Time::now();
+
+
+    if (octomap_msgs::fullMapToMsg(octree, octomapMsg)) {
+        OctomapPub[idx].publish(octomapMsg);
+    }
+}
+
 void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
 {
     // TicToc tt_ppcom;
@@ -558,43 +595,6 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
     }
 
     // printf("ppcomcb: %f\n", tt_ppcom.Toc());
-}
-
-void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
-{
-    // Transform the point cloud into the world frame as already done
-    CloudXYZIPtr cloud(new CloudXYZI());
-    pcl::fromROSMsg(*msg, *cloud);
-
-    // Transform the point cloud into the world frame
-    pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
-    Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
-
-    // Transform the format of the point cloud into octomap
-    octomap::Pointcloud octomapCloud;
-    octomap::pointCloud2ToOctomap(*msg, octomapCloud);
-
-    // Update Octree, and use it to generate Octomap
-    double resolution = 1;
-    octomap::OcTree octree(resolution);
-    
-    // Insert the point cloud into the octree
-    for (auto& point : octomapCloud) {
-        octree.updateNode(octomap::point3d(point.x(), point.y(), point.z()), true);
-    }
-
-    // Update the inner occupancy
-    octree.updateInnerOccupancy();
-
-    // Publish the octomap
-    octomap_msgs::Octomap octomapMsg;
-    octomapMsg.header.frame_id = "world";
-    octomapMsg.header.stamp = ros::Time::now();
-
-
-    if (octomap_msgs::fullMapToMsg(octree, octomapMsg)) {
-        OctomapPub[idx].publish(octomapMsg);
-    }
 }
 
 
