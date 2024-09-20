@@ -57,6 +57,12 @@
 
 #include "boost/filesystem.hpp"
 
+#include <octomap/octomap.h>
+#include <octomap/OcTree.h>
+#include <octomap_msgs/conversions.h>
+#include <octomap_msgs/Octomap.h>
+#include <octomap_ros/conversions.h>
+
 // Printout colors
 #define KNRM "\x1B[0m"
 #define KRED "\x1B[31m"
@@ -126,6 +132,7 @@ deque<deque<CloudXYZIPtr>> kfCloud; // Keyframe clouds
 deque<ros::Publisher> kfPosePub;
 deque<ros::Publisher> slfKfCloudPub;
 deque<ros::Publisher> cloudInWPub;
+deque<ros::Publisher> OctomapPub;
 
 // Mission information
 deque<ros::Publisher> missionDurRemained;
@@ -364,6 +371,10 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             kfPosePub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/kf_pose", 1));
             slfKfCloudPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/slf_kf_cloud", 1));
             cloudInWPub.push_back(nh_ptr->advertise<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1));
+            OctomapPub.push_back(nh_ptr->advertise<octomap_msgs::Octomap>("/" + nodeName[i] + "/octomap", 1));
+
+            //Subscriber for local SLAM
+            cloudInWSub.push_back(nh_ptr->subscribe<sensor_msgs::PointCloud2>("/" + nodeName[i] + "/cloud_inW", 1, boost::bind(&MissionManager::GenerateOctoCallback, this, _1, i)));
 
             // Publisher for cooperative SLAM
             nbr_kf_pub_mtx.emplace_back();
@@ -547,6 +558,45 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
 
     // printf("ppcomcb: %f\n", tt_ppcom.Toc());
 }
+
+void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
+{
+    // Transform the point cloud into the world frame as already done
+    CloudXYZIPtr cloud(new CloudXYZI());
+    pcl::fromROSMsg(*msg, *cloud);
+
+    // Transform the point cloud into the world frame
+    pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
+    Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
+
+    // Transform the format of the point cloud into octomap
+    octomap::Pointcloud octomapCloud;
+    octomap::pointCloud2ToOctomap(*msg, octomapCloud);
+
+    // Update Octree, and use it to generate Octomap
+    double resolution = 1;
+    octomap::OcTree octree(resolution);
+    
+    // Insert the point cloud into the octree
+    for (auto& point : octomapCloud) {
+        octree.updateNode(octomap::point3d(point.x(), point.y(), point.z()), true);
+    }
+
+    // Update the inner occupancy
+    octree.updateInnerOccupancy();
+
+    // Publish the octomap
+    octomap_msgs::Octomap octomapMsg;
+    octomapMsg.header.frame_id = "world";
+    octomapMsg.header.stamp = ros::Time::now();
+
+
+    if (octomap_msgs::fullMapToMsg(octree, octomapMsg)) {
+        OctomapPub[idx].publish(octomapMsg);
+    }
+}
+
+
 
 void ScoreTextCallback(const RosVizMarker::Ptr &msg)
 {
