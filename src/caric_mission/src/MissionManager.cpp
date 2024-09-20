@@ -330,13 +330,13 @@ void ServoCloudCallback(const OdomMsgPtr &servoMsg, const CloudMsgPtr &cloudMsg,
 
 void GenerateOctoCallback(const sensor_msgs::PointCloud2::ConstPtr& msg, int idx)
 {
-    // Transform the point cloud into the world frame as already done
-    CloudXYZIPtr cloud(new CloudXYZI());
-    pcl::fromROSMsg(*msg, *cloud);
+    // // Transform the point cloud into the world frame as already done
+    // CloudXYZIPtr cloud(new CloudXYZI());
+    // pcl::fromROSMsg(*msg, *cloud);
 
-    // Transform the point cloud into the world frame
-    pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
-    Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
+    // // Transform the point cloud into the world frame
+    // pcl::transformPointCloud(*cloud, *cloud, (myTf<double>(*servoMsg) * tf_S_L).cast<float>().tfMat());
+    // Util::publishCloud(cloudInWPub[idx], *cloud, msg->header.stamp, string("world"));
 
     // Transform the format of the point cloud into octomap
     octomap::Pointcloud octomapCloud;
