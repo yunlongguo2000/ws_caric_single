@@ -382,7 +382,7 @@ void PPComCallback(const rotors_comm::PPComTopology::ConstPtr &msg)
             odomSub.emplace_back(*nh_ptr, gndtr_topic, 100);
             servoSub.emplace_back(*nh_ptr, servo_topic, 100);
             cloudSub.emplace_back(*nh_ptr, cloud_topic, 100);
-            msgSync.emplace_back(MySyncPolicy(10), servoSub[i], cloudSub[i]);
+            msgSync.emplace_back(MySyncPolicy(50), servoSub[i], cloudSub[i]);
             msgSync.back().registerCallback(boost::bind(&ServoCloudCallback, _1, _2, i));
 
             // Local SLAM database
